@@ -1,16 +1,31 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+
+# Fix for Streamlit Cloud matplotlib error
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import AgglomerativeClustering
 from scipy.cluster.hierarchy import dendrogram, linkage
 
-st.set_page_config(page_title="Student Performance Clustering", layout="centered")
+# -------------------------------------------------
+# Page config
+# -------------------------------------------------
+st.set_page_config(
+    page_title="Student Performance Clustering",
+    page_icon="🎓",
+    layout="centered"
+)
 
 st.title("🎓 Student Performance Clustering")
 st.write("Hierarchical Clustering using Kaggle Dataset")
 
-# Load dataset
+# -------------------------------------------------
+# Load Dataset
+# -------------------------------------------------
 @st.cache_data
 def load_data():
     return pd.read_csv("StudentsPerformance.csv")
@@ -20,40 +35,66 @@ df = load_data()
 st.subheader("📄 Dataset Preview")
 st.dataframe(df.head())
 
-# Select features
-st.subheader("⚙️ Feature Selection")
+# -------------------------------------------------
+# Feature Selection
+# -------------------------------------------------
+st.subheader("⚙️ Select Features for Clustering")
+
 features = st.multiselect(
-    "Select score columns for clustering:",
-    ['math score', 'reading score', 'writing score'],
-    default=['math score', 'reading score', 'writing score']
+    "Choose score columns:",
+    options=["math score", "reading score", "writing score"],
+    default=["math score", "reading score", "writing score"]
 )
 
 if len(features) < 2:
-    st.warning("Please select at least two features.")
-else:
-    X = df[features]
+    st.warning("⚠️ Please select at least two features.")
+    st.stop()
 
-    # Scaling
-    scaler = StandardScaler()
-    scaled_data = scaler.fit_transform(X)
+X = df[features]
 
-    # Dendrogram
-    st.subheader("🌳 Dendrogram")
-    linked = linkage(scaled_data, method='ward')
-    fig, ax = plt.subplots(figsize=(8, 4))
-    dendrogram(linked, ax=ax)
-    plt.xlabel("Students")
-    plt.ylabel("Distance")
-    st.pyplot(fig)
+# -------------------------------------------------
+# Data Scaling
+# -------------------------------------------------
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
 
-    # Number of clusters
-    k = st.slider("Select number of clusters", 2, 6, 3)
+# -------------------------------------------------
+# Dendrogram
+# -------------------------------------------------
+st.subheader("🌳 Hierarchical Dendrogram")
 
-    # Clustering
-    hc = AgglomerativeClustering(n_clusters=k, linkage='ward')
-    df['Cluster'] = hc.fit_predict(scaled_data)
+linked = linkage(X_scaled, method="ward")
 
-    st.subheader("📊 Clustered Data")
-    st.dataframe(df.head())
+fig1, ax1 = plt.subplots(figsize=(8, 4))
+dendrogram(linked, ax=ax1)
+ax1.set_xlabel("Students")
+ax1.set_ylabel("Distance")
+st.pyplot(fig1)
 
-    st.success("Clustering completed successfully!")
+# -------------------------------------------------
+# Clustering
+# -------------------------------------------------
+st.subheader("🔢 Choose Number of Clusters")
+
+k = st.slider("Number of clusters", min_value=2, max_value=6, value=3)
+
+hc = AgglomerativeClustering(n_clusters=k, linkage="ward")
+clusters = hc.fit_predict(X_scaled)
+
+df["Cluster"] = clusters
+
+# -------------------------------------------------
+# Results
+# -------------------------------------------------
+st.subheader("📊 Clustered Student Data")
+st.dataframe(df.head(10))
+
+st.success("✅ Hierarchical Clustering completed successfully!")
+
+# -------------------------------------------------
+# Cluster Summary
+# -------------------------------------------------
+st.subheader("📈 Cluster Summary (Average Scores)")
+
+summary = df.groupby("Cluster")[features].mean().round(2)
+st.dataframe(summary)
